@@ -39,7 +39,7 @@ jobs:
           KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
           KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
         run: |
-          echo "::notice::password length=${#KEYSTORE_PASSWORD}, alias='${KEY_ALIAS}'"
+          KEYSTORE_PASSWORD="$(printf %s "$KEYSTORE_PASSWORD" | tr -d '[:space:]')"; KEY_ALIAS="$(printf %s "$KEY_ALIAS" | tr -d '[:space:]')"; export KEYSTORE_PASSWORD KEY_ALIAS
           if keytool -list -keystore "$KEYSTORE_FILE" -storetype PKCS12 -storepass "$KEYSTORE_PASSWORD" -alias "${KEY_ALIAS:-calcbench}" > /dev/null 2> err.txt; then
             echo "::notice::Signing key opened with the password and alias."
           else
@@ -48,6 +48,7 @@ jobs:
       - name: Build
         run: |
           set -o pipefail
+          KEYSTORE_PASSWORD="$(printf %s "$KEYSTORE_PASSWORD" | tr -d '[:space:]')"; KEY_ALIAS="$(printf %s "$KEY_ALIAS" | tr -d '[:space:]')"; export KEYSTORE_PASSWORD KEY_ALIAS
           gradle assembleRelease --no-daemon 2>&1 | tee gradle.log || { awk '/What went wrong/{f=1} f&&NF{print} /Try:/{exit}' gradle.log | head -8 | sed 's/^/::error::/' ; exit 1; }
         env:
           BUILD_NUMBER: ${{ github.run_number }}
