@@ -6,11 +6,28 @@ android {
         applicationId 'com.calcbench.app'
         minSdk 26
         targetSdk 35
-        versionCode 1
-        versionName '1.0'
+        // CI passes the GitHub run number so every release can install over the last one.
+        versionCode (System.getenv('BUILD_NUMBER') ?: '1').toInteger()
+        versionName "1.0.${System.getenv('BUILD_NUMBER') ?: '0'}"
+    }
+    signingConfigs {
+        release {
+            // Permanent key, supplied by GitHub secrets in CI (see README).
+            def ks = System.getenv('KEYSTORE_FILE')
+            if (ks) {
+                storeFile file(ks)
+                storeType 'pkcs12'
+                storePassword System.getenv('KEYSTORE_PASSWORD')
+                keyAlias System.getenv('KEY_ALIAS') ?: 'calcbench'
+                keyPassword System.getenv('KEYSTORE_PASSWORD')
+            }
+        }
     }
     buildTypes {
-        release { minifyEnabled false; signingConfig signingConfigs.debug }
+        release {
+            minifyEnabled false
+            signingConfig System.getenv('KEYSTORE_FILE') ? signingConfigs.release : signingConfigs.debug
+        }
     }
     compileOptions {
         sourceCompatibility JavaVersion.VERSION_17
