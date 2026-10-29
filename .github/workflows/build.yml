@@ -28,11 +28,27 @@ jobs:
             echo "::warning::Signing secrets are missing. Add KEYSTORE_BASE64, KEYSTORE_PASSWORD and KEY_ALIAS under Settings > Secrets and variables > Actions. No release was published."
             echo "signed=false" >> "$GITHUB_OUTPUT"
           else
-            echo "$KEYSTORE_BASE64" | base64 -d > "$RUNNER_TEMP/release.p12"
+            printf %s "$KEYSTORE_BASE64" | tr -d ' \r\n\t' | base64 -d > "$RUNNER_TEMP/release.p12" || echo "::error::KEYSTORE_BASE64 is not valid base64. Paste the whole line again."
+            echo "::notice::keystore bytes=$(stat -c%s "$RUNNER_TEMP/release.p12") (expected 2574) sha256-match=$([ "$(sha256sum "$RUNNER_TEMP/release.p12" | cut -d' ' -f1)" = "3ef1dc1a5ca1eb73709d7034f9f3f0f2ec96b810def7a10bf8730df62d4e4b81" ] && echo yes || echo no)"
             echo "KEYSTORE_FILE=$RUNNER_TEMP/release.p12" >> "$GITHUB_ENV"
             echo "signed=true" >> "$GITHUB_OUTPUT"
           fi
-      - run: gradle assembleRelease --no-daemon
+      - name: Check signing key
+        if: steps.key.outputs.signed == 'true'
+        env:
+          KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
+        run: |
+          echo "::notice::password length=${#KEYSTORE_PASSWORD}, alias='${KEY_ALIAS}'"
+          if keytool -list -keystore "$KEYSTORE_FILE" -storetype PKCS12 -storepass "$KEYSTORE_PASSWORD" -alias "${KEY_ALIAS:-calcbench}" > /dev/null 2> err.txt; then
+            echo "::notice::Signing key opened with the password and alias."
+          else
+            echo "::error::Signing key check failed: $(grep -v JAVA_TOOL err.txt | head -2 | tr '\n' ' ')"
+          fi
+      - name: Build
+        run: |
+          set -o pipefail
+          gradle assembleRelease --no-daemon 2>&1 | tee gradle.log || { awk '/What went wrong/{f=1} f&&NF{print} /Try:/{exit}' gradle.log | head -8 | sed 's/^/::error::/' ; exit 1; }
         env:
           BUILD_NUMBER: ${{ github.run_number }}
           KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
