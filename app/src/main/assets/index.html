@@ -1,0 +1,428 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<style>body{margin:0}img{max-width:100%}[hidden]{display:none!important}</style>
+<title>Calcbench</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,700&family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&display=swap">
+<style>
+/* Layout: engineering-pad index on the left, one open calculator "sheet" on the right; stacks sheet-first on phones */
+:root{
+  --paper:#EBF0EC; --panel:#FAFCFA; --ink:#16212B; --muted:#56646C; --line:#CFD8D2;
+  --accent:#1E4DB5; --accent-ink:#FFFFFF; --soft:#DCE5F7; --mark:#F2C230; --grid:rgba(30,77,181,.07); --err:#B3261E;
+  --f-display:"Bricolage Grotesque",ui-sans-serif,system-ui,sans-serif;
+  --f-body:"IBM Plex Sans",ui-sans-serif,system-ui,-apple-system,sans-serif;
+  --f-mono:"IBM Plex Mono",ui-monospace,SFMono-Regular,Menlo,monospace;
+}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
+  --paper:#0E1418; --panel:#161F25; --ink:#E2E9E5; --muted:#93A2A9; --line:#29353C;
+  --accent:#86A8FF; --accent-ink:#0A1530; --soft:#1E2A44; --mark:#C99A10; --grid:rgba(134,168,255,.06); --err:#FF8A80; color-scheme:dark}}
+:root[data-theme="dark"]{
+  --paper:#0E1418; --panel:#161F25; --ink:#E2E9E5; --muted:#93A2A9; --line:#29353C;
+  --accent:#86A8FF; --accent-ink:#0A1530; --soft:#1E2A44; --mark:#C99A10; --grid:rgba(134,168,255,.06); --err:#FF8A80; color-scheme:dark}
+*{box-sizing:border-box}
+body{background:var(--paper);color:var(--ink);font:15px/1.5 var(--f-body)}
+.wrap{max-width:1240px;margin:0 auto;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
+.top{border-bottom:1px solid var(--line);background-image:linear-gradient(var(--grid) 1px,transparent 1px),linear-gradient(90deg,var(--grid) 1px,transparent 1px);background-size:22px 22px}
+.top .wrap{padding-block:22px 18px;display:flex;flex-wrap:wrap;gap:12px 24px;align-items:end;justify-content:space-between}
+.brand{font:700 clamp(28px,5vw,40px)/1 var(--f-display);letter-spacing:-.02em;margin:0}
+.brand span{color:var(--accent)}
+.tag{margin:6px 0 0;color:var(--muted);font-size:14px}
+.search{flex:1 1 280px;max-width:420px;position:relative}
+.search input{width:100%;font:inherit;padding:11px 14px 11px 38px;border:1px solid var(--line);border-radius:10px;background:var(--panel);color:var(--ink)}
+.search svg{position:absolute;left:12px;top:50%;transform:translateY(-50%);width:16px;height:16px;stroke:var(--muted);fill:none}
+input:focus-visible,select:focus-visible,button:focus-visible,a:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.app{display:grid;gap:24px;padding-block:20px 40px}
+@media (min-width:900px){
+  .app{grid-template-columns:330px minmax(0,1fr);align-items:start}
+  #index{order:-1;position:sticky;top:12px;max-height:calc(100vh - 24px);overflow:auto;padding-right:6px}
+}
+@media (max-width:899px){.searching #panel{display:none}}
+.chips{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:14px}
+.chip{font:500 12.5px var(--f-body);border:1px solid var(--line);background:transparent;color:var(--ink);border-radius:999px;padding:5px 10px;cursor:pointer}
+.chip[aria-pressed="true"]{background:var(--ink);color:var(--paper);border-color:var(--ink)}
+.chip b{font-weight:400;opacity:.6;margin-left:4px;font-family:var(--f-mono);font-size:11px}
+.grp h2{font:600 11px var(--f-body);letter-spacing:.12em;text-transform:uppercase;color:var(--muted);margin:16px 0 6px;display:flex;justify-content:space-between}
+.grp h2 span{font-family:var(--f-mono);letter-spacing:0}
+.list{display:grid;gap:1px}
+.item{display:block;padding:7px 10px;border-radius:8px;color:var(--ink);text-decoration:none;font-size:14px}
+.item:hover{background:var(--soft)}
+.item[aria-current="true"]{background:var(--accent);color:var(--accent-ink)}
+.empty{color:var(--muted);padding:12px 0}
+.sheet{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:clamp(18px,3vw,30px);display:grid;gap:22px}
+.crumb{font:600 11px var(--f-body);letter-spacing:.12em;text-transform:uppercase;color:var(--accent);margin:0}
+.sheet h1{font:700 clamp(26px,4vw,36px)/1.1 var(--f-display);letter-spacing:-.015em;margin:4px 0 6px;text-wrap:balance}
+.desc{margin:0;color:var(--muted);max-width:62ch}
+.fields{display:grid;gap:14px;grid-template-columns:repeat(auto-fill,minmax(190px,1fr))}
+.field{display:grid;gap:5px;min-width:0}
+.field label{font-size:13px;font-weight:500}
+.inbox{display:flex;align-items:center;border:1px solid var(--line);border-radius:9px;background:var(--paper);overflow:hidden}
+.inbox:focus-within{border-color:var(--accent)}
+.inbox input,.inbox select{flex:1;min-width:0;border:0;background:transparent;color:var(--ink);font:500 15px var(--f-mono);padding:10px 12px;font-variant-numeric:tabular-nums}
+.inbox input:focus,.inbox select:focus{outline:none}
+.inbox select{font-family:var(--f-body);font-weight:400}
+.unit{padding:0 12px;color:var(--muted);font:12px var(--f-mono);white-space:nowrap}
+.results{border-top:1px dashed var(--line);padding-top:20px;display:grid;gap:14px}
+.main-l{font-size:13px;color:var(--muted);margin:0 0 4px}
+.main-v{font:500 clamp(30px,6vw,46px)/1.1 var(--f-mono);letter-spacing:-.02em;margin:0;overflow-wrap:anywhere;font-variant-numeric:tabular-nums}
+.main-v mark{background:linear-gradient(transparent 62%,var(--mark) 62%,var(--mark) 92%,transparent 92%);color:inherit;padding:0 2px}
+.main-v small{font-size:.42em;color:var(--muted);margin-left:8px;letter-spacing:0}
+.rows{display:grid;grid-template-columns:repeat(auto-fill,minmax(210px,1fr));gap:0 24px;margin:0}
+.row{display:flex;justify-content:space-between;gap:12px;padding:8px 0;border-bottom:1px solid var(--line);min-width:0}
+.row dt{color:var(--muted);font-size:13.5px}
+.row dd{margin:0;font:500 14px var(--f-mono);text-align:right;overflow-wrap:anywhere;font-variant-numeric:tabular-nums}
+.err{color:var(--err);margin:0;font-size:14px}
+.how{background:var(--paper);border-radius:10px;padding:14px 16px;font-size:13.5px;color:var(--muted)}
+.how h3{margin:0 0 4px;font:600 11px var(--f-body);letter-spacing:.12em;text-transform:uppercase;color:var(--ink)}
+.how code{font-family:var(--f-mono);font-size:12.5px;color:var(--ink);white-space:pre-wrap}
+.bar{display:flex;gap:10px;flex-wrap:wrap}
+.btn{font:500 13px var(--f-body);border:1px solid var(--line);background:transparent;color:var(--ink);border-radius:8px;padding:7px 12px;cursor:pointer}
+.btn:hover{border-color:var(--accent);color:var(--accent)}
+.foot{color:var(--muted);font-size:12.5px;padding-block:0 30px}
+@media (prefers-reduced-motion:no-preference){.results{animation:none}}
+</style>
+
+</head><body>
+<header class="top"><div class="wrap">
+  <div>
+    <p class="brand">Calc<span>bench</span></p>
+    <p class="tag" id="tag"></p>
+  </div>
+  <label class="search"><svg viewBox="0 0 24 24" stroke-width="2" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-4-4"/></svg>
+    <input id="q" type="search" placeholder="Search calculators — try “mortgage” or “concrete”" aria-label="Search calculators" autocomplete="off">
+  </label>
+</div></header>
+
+<div class="wrap app">
+  <main id="panel" aria-live="polite"></main>
+  <aside id="index" aria-label="All calculators"><div class="chips" id="chips"></div><div id="list"></div></aside>
+</div>
+<p class="wrap foot">An independent collection covering the same subjects as omnicalculator.com. Results are estimates for planning; check medical, financial and structural decisions with a professional.</p>
+
+<script>
+/* ---------- helpers ---------- */
+const SUP={'-':'⁻','0':'⁰','1':'¹','2':'²','3':'³','4':'⁴','5':'⁵','6':'⁶','7':'⁷','8':'⁸','9':'⁹'};
+const sci=(n,p=4)=>{const [m,e]=n.toExponential(p-1).split('e');return `${+m} × 10${String(+e).replace(/./g,c=>SUP[c]||c)}`};
+const fx=(n,d=4)=>{if(typeof n!=='number'||!isFinite(n))return '—';const a=Math.abs(n);if(a!==0&&(a>=1e12||a<1e-4))return sci(n);return n.toLocaleString('en-US',{maximumFractionDigits:d})};
+const $=n=>isFinite(n)?(n<0?'−$':'$')+Math.abs(n).toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2}):'—';
+const pc=(n,d=2)=>isFinite(n)?fx(n,d)+'%':'—';
+const pad=n=>String(n).padStart(2,'0');
+const iso=d=>`${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`;
+const pd=s=>{const [y,m,d]=String(s).split('-').map(Number);if(!y||!m||!d)throw 'Enter a full date.';return new Date(y,m-1,d)};
+const addD=(d,n)=>{const r=new Date(d);r.setDate(r.getDate()+n);return r};
+const TODAY=(()=>{const d=new Date();d.setHours(0,0,0,0);return d})();
+const days=(a,b)=>Math.round((b-a)/864e5);
+const longD=d=>d.toLocaleDateString('en-US',{weekday:'short',year:'numeric',month:'short',day:'numeric'});
+const hms=s=>{s=Math.round(s);const h=Math.floor(s/3600),m=Math.floor(s%3600/60),x=s%60;return h?`${h}:${pad(m)}:${pad(x)}`:`${m}:${pad(x)}`};
+const pt=s=>{const [h,m]=String(s).split(':').map(Number);if(isNaN(h)||isNaN(m))throw 'Enter a time.';return h*60+m};
+const clock=m=>{m=((Math.round(m)%1440)+1440)%1440;const h=Math.floor(m/60),mm=m%60;return `${(h%12)||12}:${pad(mm)} ${h<12?'AM':'PM'}`};
+const gcd=(a,b)=>{a=Math.abs(a);b=Math.abs(b);while(b)[a,b]=[b,a%b];return a};
+const fact=n=>{let r=1;for(let i=2;i<=n;i++)r*=i;return r};
+const erf=x=>{const s=Math.sign(x);x=Math.abs(x);const t=1/(1+.3275911*x);return s*(1-(((((1.061405429*t-1.453152027)*t)+1.421413741)*t-.284496736)*t+.254829592)*t*Math.exp(-x*x))};
+const ncdf=z=>.5*(1+erf(z/Math.SQRT2));
+const ZC={80:1.2816,85:1.4395,90:1.6449,95:1.96,98:2.3263,99:2.5758,99.9:3.2905};
+const need=(...xs)=>{if(xs.some(x=>typeof x!=='number'||!isFinite(x)))throw 'Fill in every field to see a result.'};
+
+const N=(k,l,d,u)=>({k,l,d,u,t:'n'}), S=(k,l,o,d)=>({k,l,o,d:d??(Array.isArray(o[0])?o[0][0]:o[0]),t:'s'}),
+      D=(k,l,d)=>({k,l,d,t:'d'}), TM=(k,l,d)=>({k,l,d,t:'tm'}), TX=(k,l,d,u)=>({k,l,d,u,t:'tx'});
+const C=[]; const add=(c,id,n,s,i,f,m)=>C.push({c,id,n,s,i,f,m});
+
+/* ---------- MATH ---------- */
+add('Math','percentage','Percentage','Find a percentage of any number.',[N('p','Percent',15,'%'),N('x','Of value',240)],
+ v=>{need(v.p,v.x);return [['Result',fx(v.p/100*v.x)],['Remaining',fx(v.x-v.p/100*v.x)],['As decimal',fx(v.p/100,6)]]},'result = P ÷ 100 × X');
+add('Math','percent-of','What percent is X of Y','Express one number as a percentage of another.',[N('x','Value X',36),N('y','Total Y',48)],
+ v=>{need(v.x,v.y);return [['X is this % of Y',pc(v.x/v.y*100,4)],['Ratio',fx(v.x/v.y,6)]]},'percent = X ÷ Y × 100');
+add('Math','percentage-change','Percentage change','Increase or decrease between an old and a new value.',[N('a','Original value',80),N('b','New value',92)],
+ v=>{need(v.a,v.b);const c=(v.b-v.a)/Math.abs(v.a)*100;return [[c>=0?'Increase':'Decrease',pc(Math.abs(c),4)],['Difference',fx(v.b-v.a)],['Percentage difference',pc(Math.abs(v.b-v.a)/((v.a+v.b)/2)*100)]]},'change = (new − old) ÷ |old| × 100');
+add('Math','log','Logarithm','Log of a number in any base.',[N('x','Number',1000),N('b','Base',10)],
+ v=>{need(v.x,v.b);if(v.x<=0||v.b<=0||v.b===1)throw 'Number and base must be positive; base cannot be 1.';return [['log',fx(Math.log(v.x)/Math.log(v.b),8)],['Natural log ln',fx(Math.log(v.x),8)],['log₂',fx(Math.log2(v.x),8)]]},'logₐ(x) = ln(x) ÷ ln(a)');
+add('Math','exponent','Exponent','Raise a base to any power, including negatives and fractions.',[N('b','Base',2),N('e','Exponent',10)],
+ v=>{need(v.b,v.e);return [['Result',fx(Math.pow(v.b,v.e),8)],['Reciprocal',fx(Math.pow(v.b,-v.e),8)]]},'result = bᵉ');
+add('Math','root','Square & nth root','Square root, cube root, or any root.',[N('x','Number',729),N('n','Root',2)],
+ v=>{need(v.x,v.n);if(v.x<0&&v.n%2!==1)throw 'Even roots of negative numbers are not real.';const r=Math.sign(v.x)*Math.pow(Math.abs(v.x),1/v.n);return [['Root',fx(r,10)],['Square root',v.x>=0?fx(Math.sqrt(v.x),10):'—'],['Cube root',fx(Math.cbrt(v.x),10)]]},'ⁿ√x = x^(1/n)');
+add('Math','circle','Circle (circumference & area)','Diameter, circumference and area from a radius.',[N('r','Radius',5)],
+ v=>{need(v.r);return [['Area',fx(Math.PI*v.r*v.r,6)],['Circumference',fx(2*Math.PI*v.r,6)],['Diameter',fx(2*v.r)]]},'C = 2πr · A = πr²');
+add('Math','slope','Slope of a line','Slope, intercept and distance between two points.',[N('x1','x₁',1),N('y1','y₁',2),N('x2','x₂',5),N('y2','y₂',10)],
+ v=>{need(v.x1,v.y1,v.x2,v.y2);const dx=v.x2-v.x1,dy=v.y2-v.y1;if(dx===0)return [['Slope','undefined (vertical)'],['Line','x = '+fx(v.x1)],['Distance',fx(Math.abs(dy))]];const m=dy/dx,b=v.y1-m*v.x1;return [['Slope m',fx(m,6)],['y-intercept b',fx(b,6)],['Equation',`y = ${fx(m,4)}x ${b<0?'−':'+'} ${fx(Math.abs(b),4)}`],['Angle',fx(Math.atan(m)*180/Math.PI,3)+'°'],['Distance',fx(Math.hypot(dx,dy),6)]]},'m = (y₂ − y₁) ÷ (x₂ − x₁)');
+add('Math','pythagorean','Pythagorean theorem','Hypotenuse of a right triangle from its two legs.',[N('a','Leg a',3),N('b','Leg b',4)],
+ v=>{need(v.a,v.b);const c=Math.hypot(v.a,v.b);return [['Hypotenuse c',fx(c,6)],['Area',fx(v.a*v.b/2,6)],['Angle α',fx(Math.atan(v.a/v.b)*180/Math.PI,3)+'°'],['Angle β',fx(Math.atan(v.b/v.a)*180/Math.PI,3)+'°']]},'c = √(a² + b²)');
+add('Math','quadratic','Quadratic equation','Solve ax² + bx + c = 0, including complex roots.',[N('a','a',1),N('b','b',-3),N('c','c',-10)],
+ v=>{need(v.a,v.b,v.c);if(v.a===0)throw 'a cannot be 0.';const d=v.b*v.b-4*v.a*v.c,h=-v.b/(2*v.a);let r;if(d>=0){const s=Math.sqrt(d)/(2*v.a);r=[['Roots',`${fx(h+s,6)}, ${fx(h-s,6)}`]]}else{const s=Math.sqrt(-d)/(2*Math.abs(v.a));r=[['Roots',`${fx(h,6)} ± ${fx(s,6)}i`]]}return r.concat([['Discriminant',fx(d)],['Vertex',`(${fx(h,4)}, ${fx(v.c-v.b*v.b/(4*v.a),4)})`]])},'x = (−b ± √(b² − 4ac)) ÷ 2a');
+add('Math','scientific-notation','Scientific notation','Convert a decimal to scientific, E and engineering notation.',[TX('x','Number','0.000045600')],
+ v=>{const x=Number(String(v.x).replace(/,/g,''));if(!isFinite(x)||x===0)throw 'Enter a non-zero number.';const e=Math.floor(Math.log10(Math.abs(x))),m=x/10**e,ee=Math.floor(e/3)*3;return [['Scientific',`${+m.toPrecision(10)} × 10${String(e).replace(/./g,c=>SUP[c])}`],['E notation',`${+m.toPrecision(10)}e${e}`],['Engineering',`${+(x/10**ee).toPrecision(10)} × 10${String(ee).replace(/./g,c=>SUP[c])}`]]},'x = a × 10ⁿ, 1 ≤ |a| < 10');
+add('Math','sig-fig','Significant figures','Count significant figures and round to any number of them.',[TX('x','Number','0.004050'),N('n','Round to (sig figs)',2)],
+ v=>{let s=String(v.x).trim().replace(/^[+-]/,'');const mant=s.split(/e/i)[0];if(!/^\d*\.?\d*$/.test(mant)||!/\d/.test(mant))throw 'Enter a plain number like 0.00405 or 1.20e3.';let cnt;if(mant.includes('.')||/e/i.test(s))cnt=mant.replace('.','').replace(/^0+/,'').length||1;else cnt=mant.replace(/^0+/,'').replace(/0+$/,'').length||1;const x=Number(String(v.x).trim());const n=Math.max(1,Math.min(21,Math.round(v.n||1)));return [['Significant figures',String(cnt)],['Rounded',Number(x).toPrecision(n)],['Decimal places',String((mant.split('.')[1]||'').length)]]},'Leading zeros never count; trailing zeros count only after a decimal point.');
+add('Math','fraction','Simplify a fraction','Reduce a fraction and show it as a decimal and mixed number.',[N('a','Numerator',84),N('b','Denominator',36)],
+ v=>{need(v.a,v.b);if(v.b===0)throw 'Denominator cannot be 0.';if(!Number.isInteger(v.a)||!Number.isInteger(v.b))throw 'Use whole numbers.';const g=gcd(v.a,v.b),n=v.a/g*Math.sign(v.b),d=Math.abs(v.b/g),w=Math.trunc(n/d),r=Math.abs(n%d);return [['Simplified',`${n}/${d}`],['Mixed number',r?`${w||''} ${r}/${d}`.trim():String(w)],['Decimal',fx(n/d,8)],['GCD used',String(g)]]},'divide top and bottom by gcd(a, b)');
+add('Math','gcd-lcm','GCD & LCM','Greatest common divisor and least common multiple.',[N('a','First number',48),N('b','Second number',180)],
+ v=>{need(v.a,v.b);const g=gcd(Math.round(v.a),Math.round(v.b));return [['GCD',fx(g)],['LCM',fx(Math.abs(v.a*v.b)/g)]]},'lcm(a,b) = |a·b| ÷ gcd(a,b)');
+add('Math','triangle','Triangle area (3 sides)','Area and angles of any triangle from its sides.',[N('a','Side a',7),N('b','Side b',8),N('c','Side c',9)],
+ v=>{need(v.a,v.b,v.c);const s=(v.a+v.b+v.c)/2,A2=s*(s-v.a)*(s-v.b)*(s-v.c);if(A2<=0)throw 'These sides cannot form a triangle.';const ang=(x,y,z)=>Math.acos((y*y+z*z-x*x)/(2*y*z))*180/Math.PI;return [['Area',fx(Math.sqrt(A2),6)],['Perimeter',fx(2*s)],['Angle A',fx(ang(v.a,v.b,v.c),3)+'°'],['Angle B',fx(ang(v.b,v.a,v.c),3)+'°'],['Angle C',fx(ang(v.c,v.a,v.b),3)+'°']]},"Heron's formula: A = √(s(s−a)(s−b)(s−c))");
+add('Math','volume','Volume of shapes','Volume and surface area of common solids.',[S('s','Shape',[['cyl','Cylinder'],['sph','Sphere'],['cone','Cone'],['box','Rectangular box']]),N('a','Radius / length',3),N('b','Height',10),N('c','Width (box only)',4)],
+ v=>{need(v.a);const r=v.a,h=v.b;if(v.s==='sph')return [['Volume',fx(4/3*Math.PI*r**3,6)],['Surface area',fx(4*Math.PI*r*r,6)]];need(h);if(v.s==='cyl')return [['Volume',fx(Math.PI*r*r*h,6)],['Surface area',fx(2*Math.PI*r*(r+h),6)]];if(v.s==='cone')return [['Volume',fx(Math.PI*r*r*h/3,6)],['Surface area',fx(Math.PI*r*(r+Math.hypot(r,h)),6)]];need(v.c);return [['Volume',fx(r*h*v.c,6)],['Surface area',fx(2*(r*h+r*v.c+h*v.c),6)]]},'cylinder πr²h · sphere ⁴⁄₃πr³ · cone ⅓πr²h');
+add('Math','factorial','Factorial','n! for whole numbers up to 170.',[N('n','n',12)],
+ v=>{need(v.n);if(v.n<0||!Number.isInteger(v.n)||v.n>170)throw 'Use a whole number from 0 to 170.';const f=fact(v.n);return [['n!',f<1e15?f.toLocaleString('en-US'):sci(f,8)],['Digits',String(Math.floor(Math.log10(f))+1)]]},'n! = 1 × 2 × … × n');
+add('Math','ratio','Ratio (solve for D)','Scale a ratio A : B = C : D.',[N('a','A',3),N('b','B',4),N('c','C',15)],
+ v=>{need(v.a,v.b,v.c);const g=gcd(v.a,v.b);return [['D',fx(v.b*v.c/v.a,6)],['Simplified A:B',Number.isInteger(v.a)&&Number.isInteger(v.b)?`${v.a/g} : ${v.b/g}`:'—'],['Scale factor',fx(v.c/v.a,6)]]},'D = B × C ÷ A');
+
+/* ---------- FINANCE ---------- */
+const amort=(P,apr,n)=>{const r=apr/100/12;return r?P*r/(1-(1+r)**-n):P/n};
+add('Finance','loan','Loan payment','Monthly payment and total interest on a fixed-rate loan.',[N('p','Loan amount',25000,'$'),N('r','Interest rate',7.5,'% APR'),N('y','Term',5,'years')],
+ v=>{need(v.p,v.r,v.y);const n=v.y*12,m=amort(v.p,v.r,n);return [['Monthly payment',$(m)],['Total paid',$(m*n)],['Total interest',$(m*n-v.p)],['Payments',fx(n)]]},'M = P·r ÷ (1 − (1+r)⁻ⁿ), r = APR ÷ 12');
+add('Finance','mortgage','Mortgage','Monthly housing cost with taxes, insurance and HOA.',[N('price','Home price',350000,'$'),N('down','Down payment',20,'%'),N('r','Interest rate',6.5,'%'),S('y','Term',[['30','30 years'],['20','20 years'],['15','15 years'],['10','10 years']]),N('tax','Property tax',4200,'$/yr'),N('ins','Home insurance',1800,'$/yr'),N('hoa','HOA',0,'$/mo')],
+ v=>{need(v.price,v.down,v.r,v.tax,v.ins,v.hoa);const L=v.price*(1-v.down/100),n=+v.y*12,pi=amort(L,v.r,n);return [['Monthly payment',$(pi+v.tax/12+v.ins/12+v.hoa)],['Principal & interest',$(pi)],['Tax + insurance + HOA',$(v.tax/12+v.ins/12+v.hoa)],['Loan amount',$(L)],['Total interest',$(pi*n-L)],['Down payment',$(v.price*v.down/100)]]},'P&I uses the standard amortization formula; escrow items are divided by 12.');
+add('Finance','compound-interest','Compound interest','Growth of savings with compounding and monthly deposits.',[N('p','Starting amount',10000,'$'),N('c','Monthly deposit',200,'$'),N('r','Annual rate',7,'%'),N('y','Years',20),S('n','Compounded',[['12','Monthly'],['365','Daily'],['4','Quarterly'],['1','Yearly']])],
+ v=>{need(v.p,v.c,v.r,v.y);const k=+v.n,m=(1+v.r/100/k)**(k/12)-1;let b=v.p;const M=Math.round(v.y*12);for(let i=0;i<M;i++)b=b*(1+m)+v.c;const dep=v.p+v.c*M;return [['Future value',$(b)],['Total deposited',$(dep)],['Interest earned',$(b-dep)],['Effective annual rate',pc(((1+v.r/100/k)**k-1)*100,3)]]},'A = P(1 + r/n)^(nt), with deposits added each month');
+add('Finance','simple-interest','Simple interest','Interest without compounding.',[N('p','Principal',5000,'$'),N('r','Annual rate',4,'%'),N('y','Time',3,'years')],
+ v=>{need(v.p,v.r,v.y);const i=v.p*v.r/100*v.y;return [['Interest',$(i)],['Total',$(v.p+i)]]},'I = P × r × t');
+add('Finance','sales-tax','Sales tax','Tax and total price for a purchase.',[N('p','Price before tax',129.99,'$'),N('r','Sales tax rate',8.25,'%')],
+ v=>{need(v.p,v.r);const t=v.p*v.r/100;return [['Total price',$(v.p+t)],['Tax',$(t)],['Pre-tax price if total were this',$(v.p/(1+v.r/100))]]},'tax = price × rate');
+add('Finance','tip','Tip & bill split','Tip amount and each person’s share.',[N('b','Bill',86.40,'$'),N('t','Tip',20,'%'),N('n','People',3)],
+ v=>{need(v.b,v.t,v.n);const t=v.b*v.t/100;return [['Each person pays',$((v.b+t)/v.n)],['Tip',$(t)],['Total',$(v.b+t)]]},'total = bill × (1 + tip%)');
+add('Finance','discount','Discount','Sale price after a percentage off.',[N('p','Original price',80,'$'),N('d','Discount',25,'% off'),N('t','Sales tax',0,'%')],
+ v=>{need(v.p,v.d,v.t);const s=v.p*(1-v.d/100);return [['Sale price',$(s)],['You save',$(v.p-s)],['With tax',$(s*(1+v.t/100))]]},'sale = price × (1 − discount%)');
+add('Finance','salary-to-hourly','Salary to hourly','Convert a yearly salary to hourly, weekly and monthly pay.',[N('s','Annual salary',62000,'$'),N('h','Hours per week',40),N('w','Weeks per year',52)],
+ v=>{need(v.s,v.h,v.w);return [['Hourly',$(v.s/(v.h*v.w))],['Weekly',$(v.s/v.w)],['Biweekly',$(v.s/v.w*2)],['Monthly',$(v.s/12)],['Daily (5-day week)',$(v.s/v.w/5)]]},'hourly = salary ÷ (hours/week × weeks/year)');
+add('Finance','hourly-to-salary','Hourly to salary','Yearly pay from an hourly wage, with overtime.',[N('r','Hourly rate',28,'$'),N('h','Regular hours/week',40),N('o','Overtime hours/week',0),N('w','Weeks per year',52)],
+ v=>{need(v.r,v.h,v.o,v.w);const wk=v.r*v.h+v.r*1.5*v.o;return [['Annual salary',$(wk*v.w)],['Monthly',$(wk*v.w/12)],['Weekly',$(wk)]]},'overtime paid at 1.5×');
+add('Finance','roi','Return on investment','Total and annualized return.',[N('a','Amount invested',10000,'$'),N('b','Amount returned',14500,'$'),N('y','Holding period',3,'years')],
+ v=>{need(v.a,v.b,v.y);return [['ROI',pc((v.b-v.a)/v.a*100)],['Annualized',pc(((v.b/v.a)**(1/v.y)-1)*100)],['Gain',$(v.b-v.a)]]},'ROI = (return − cost) ÷ cost');
+add('Finance','cagr','CAGR','Compound annual growth rate between two values.',[N('a','Starting value',50000,'$'),N('b','Ending value',90000,'$'),N('y','Years',6)],
+ v=>{need(v.a,v.b,v.y);return [['CAGR',pc(((v.b/v.a)**(1/v.y)-1)*100,3)],['Total growth',pc((v.b/v.a-1)*100)]]},'CAGR = (end ÷ start)^(1/years) − 1');
+add('Finance','margin','Margin & markup','Profit margin and markup from cost and price.',[N('c','Cost',40,'$'),N('p','Selling price',65,'$')],
+ v=>{need(v.c,v.p);return [['Gross margin',pc((v.p-v.c)/v.p*100)],['Markup',pc((v.p-v.c)/v.c*100)],['Profit',$(v.p-v.c)]]},'margin = profit ÷ price · markup = profit ÷ cost');
+add('Finance','break-even','Break-even point','Units you must sell to cover fixed costs.',[N('f','Fixed costs',12000,'$'),N('p','Price per unit',45,'$'),N('c','Variable cost per unit',18,'$')],
+ v=>{need(v.f,v.p,v.c);if(v.p<=v.c)throw 'Price must be higher than variable cost.';const u=v.f/(v.p-v.c);return [['Break-even units',fx(Math.ceil(u))],['Break-even revenue',$(Math.ceil(u)*v.p)],['Contribution margin',$(v.p-v.c)]]},'units = fixed ÷ (price − variable cost)');
+add('Finance','savings-goal','Savings goal','Monthly deposit needed to reach a target.',[N('g','Goal',30000,'$'),N('c','Already saved',2000,'$'),N('y','Years',4),N('r','Annual return',4.5,'%')],
+ v=>{need(v.g,v.c,v.y,v.r);const m=(1+v.r/100)**(1/12)-1,n=v.y*12,fv=v.c*(1+m)**n,pm=m?(v.g-fv)*m/((1+m)**n-1):(v.g-fv)/n;return [['Monthly deposit',pm>0?$(pm):'$0.00 — already on track'],['Current savings grow to',$(fv)],['Total you deposit',$(Math.max(0,pm)*n)]]},'PMT = (goal − FV of savings) × r ÷ ((1+r)ⁿ − 1)');
+add('Finance','inflation','Inflation','Future cost and purchasing power at a steady inflation rate.',[N('a','Amount today',100,'$'),N('r','Inflation rate',3,'%/yr'),N('y','Years',10)],
+ v=>{need(v.a,v.r,v.y);const f=(1+v.r/100)**v.y;return [['Future cost',$(v.a*f)],['Buying power of today’s amount',$(v.a/f)],['Cumulative inflation',pc((f-1)*100)]]},'future = amount × (1 + rate)^years');
+add('Finance','credit-card','Credit card payoff','Months to pay off a balance at a fixed payment.',[N('b','Balance',6500,'$'),N('r','APR',22.9,'%'),N('p','Monthly payment',250,'$')],
+ v=>{need(v.b,v.r,v.p);const r=v.r/100/12;if(v.p<=v.b*r)throw `The payment must be more than ${$(v.b*r)} — the first month’s interest.`;const n=r?-Math.log(1-r*v.b/v.p)/Math.log(1+r):v.b/v.p,N2=Math.ceil(n);return [['Months to pay off',fx(N2)],['Total interest',$(v.p*n-v.b)],['Total paid',$(v.p*n)],['Payoff date',longD(new Date(TODAY.getFullYear(),TODAY.getMonth()+N2,TODAY.getDate()))]]},'n = −ln(1 − rB/P) ÷ ln(1 + r)');
+
+/* ---------- HEALTH ---------- */
+add('Health','bmi','BMI','Body mass index and healthy weight range.',[S('u','Units',[['us','US (lb, in)'],['m','Metric (kg, cm)']]),N('w','Weight',170,'lb / kg'),N('h','Height',69,'in / cm')],
+ v=>{need(v.w,v.h);const kg=v.u==='us'?v.w*.45359237:v.w,m=v.u==='us'?v.h*.0254:v.h/100,b=kg/(m*m),cat=b<18.5?'Underweight':b<25?'Healthy weight':b<30?'Overweight':'Obesity';const lo=18.5*m*m,hi=24.9*m*m,cv=x=>v.u==='us'?fx(x/.45359237,1)+' lb':fx(x,1)+' kg';return [['BMI',fx(b,1)],['Category',cat],['Healthy range for height',`${cv(lo)} – ${cv(hi)}`]]},'BMI = kg ÷ m². Adult categories per CDC.');
+add('Health','bmr','Calories (BMR & TDEE)','Resting and daily calorie needs (Mifflin–St Jeor).',[S('sex','Sex',[['m','Male'],['f','Female']]),N('a','Age',35,'years'),N('w','Weight',170,'lb'),N('h','Height',69,'in'),S('act','Activity',[['1.2','Sedentary'],['1.375','Light (1–3 days/wk)'],['1.55','Moderate (3–5 days/wk)'],['1.725','Very active (6–7 days)'],['1.9','Athlete / physical job']],'1.375')],
+ v=>{need(v.a,v.w,v.h);const b=10*v.w*.45359237+6.25*v.h*2.54-5*v.a+(v.sex==='m'?5:-161),t=b*+v.act;return [['Daily calories (TDEE)',fx(Math.round(t))+' kcal'],['BMR',fx(Math.round(b))+' kcal'],['Mild deficit (−0.5 lb/wk)',fx(Math.round(t-250))+' kcal'],['Mild surplus',fx(Math.round(t+250))+' kcal']]},'BMR = 10·kg + 6.25·cm − 5·age + (5 or −161)');
+add('Health','body-fat','Body fat (Navy method)','Body fat estimate from tape measurements.',[S('sex','Sex',[['m','Male'],['f','Female']]),N('h','Height',69,'in'),N('w','Waist (at navel)',34,'in'),N('n','Neck',15,'in'),N('hip','Hips (women)',38,'in')],
+ v=>{need(v.h,v.w,v.n);let bf;if(v.sex==='m'){if(v.w<=v.n)throw 'Waist must be larger than neck.';bf=86.010*Math.log10(v.w-v.n)-70.041*Math.log10(v.h)+36.76}else{need(v.hip);bf=163.205*Math.log10(v.w+v.hip-v.n)-97.684*Math.log10(v.h)-78.387}return [['Body fat',pc(bf,1)]]},'U.S. Navy circumference formula (inches)');
+add('Health','ideal-weight','Ideal body weight','Common clinical formulas for ideal weight.',[S('sex','Sex',[['m','Male'],['f','Female']]),N('h','Height',69,'in')],
+ v=>{need(v.h);const x=v.h-60,m=v.sex==='m',lb=k=>fx(k/.45359237,1)+' lb';return [['Devine',lb((m?50:45.5)+2.3*x)],['Robinson',lb((m?52:49)+(m?1.9:1.7)*x)],['Miller',lb((m?56.2:53.1)+(m?1.41:1.36)*x)],['Hamwi',lb((m?48:45.5)+(m?2.7:2.2)*x)]]},'Each adds a fixed amount per inch over 5 ft.');
+add('Health','water-intake','Water intake','Rule-of-thumb daily water target.',[N('w','Body weight',170,'lb'),N('m','Exercise',30,'min/day')],
+ v=>{need(v.w,v.m);const oz=v.w/2+v.m/30*12;return [['Daily water',fx(Math.round(oz))+' fl oz'],['In cups',fx(oz/8,1)],['In liters',fx(oz*.0295735,2)]]},'½ oz per lb of body weight + 12 oz per 30 min of exercise');
+add('Health','due-date','Pregnancy due date','Estimated due date from the last menstrual period.',[D('lmp','First day of last period',iso(addD(TODAY,-70)))],
+ v=>{const l=pd(v.lmp),dd=addD(l,280),g=days(l,TODAY);return [['Due date',longD(dd)],['Weeks along today',g>=0?`${Math.floor(g/7)} weeks ${g%7} days`:'—'],['Estimated conception',longD(addD(l,14))],['Days to go',fx(days(TODAY,dd))]]},"Naegele's rule: LMP + 280 days");
+add('Health','heart-rate-zones','Heart rate zones','Training zones using heart rate reserve (Karvonen).',[N('a','Age',40),N('r','Resting heart rate',62,'bpm')],
+ v=>{need(v.a,v.r);const mx=220-v.a,z=p=>Math.round(v.r+(mx-v.r)*p);return [['Max heart rate',mx+' bpm'],['Zone 1 · recovery',`${z(.5)}–${z(.6)} bpm`],['Zone 2 · aerobic base',`${z(.6)}–${z(.7)} bpm`],['Zone 3 · tempo',`${z(.7)}–${z(.8)} bpm`],['Zone 4 · threshold',`${z(.8)}–${z(.9)} bpm`],['Zone 5 · max',`${z(.9)}–${mx} bpm`]]},'target = resting + (max − resting) × intensity');
+add('Health','sleep','Sleep cycles','Bedtimes that let you wake between 90-minute cycles.',[TM('w','Wake-up time','06:30')],
+ v=>{const w=pt(v.w);return [6,5,4,3].map(c=>[`${c} cycles · ${c*1.5} h`,clock(w-c*90-15)])},'Each cycle ≈ 90 min, plus ~15 min to fall asleep.');
+add('Health','waist-height','Waist-to-height ratio','A simple screen for central body fat.',[N('w','Waist',34,'in'),N('h','Height',69,'in')],
+ v=>{need(v.w,v.h);const r=v.w/v.h;return [['Ratio',fx(r,3)],['Reading',r<.4?'Below typical range':r<.5?'Healthy (under 0.5)':r<.6?'Increased risk':'High risk']]},'Keep your waist under half your height.');
+
+/* ---------- CONVERSION ---------- */
+const conv=(id,n,s,units,d,a,b)=>add('Conversion',id,n,s,[N('x','Value',d),S('a','From',units.map(u=>[u[0],u[1]]),a),S('b','To',units.map(u=>[u[0],u[1]]),b)],
+ v=>{need(v.x);const F=Object.fromEntries(units.map(u=>[u[0],u[2]])),r=v.x*F[v.a]/F[v.b],L=Object.fromEntries(units.map(u=>[u[0],u[1].replace(/ \(.*\)/,'')]));return [[`${fx(v.x,6)} ${L[v.a]} =`,fx(r,8)+' '+L[v.b]],[`1 ${L[v.a]}`,fx(F[v.a]/F[v.b],8)+' '+L[v.b]]].concat(units.filter(u=>u[0]!==v.a&&u[0]!==v.b).map(u=>[u[1],fx(v.x*F[v.a]/u[2],6)]))},'multiply by the ratio of unit sizes');
+conv('length','Length converter','Inches, feet, meters, miles and more.',[['in','inches',.0254],['ft','feet',.3048],['yd','yards',.9144],['mi','miles',1609.344],['mm','millimeters',.001],['cm','centimeters',.01],['m','meters',1],['km','kilometers',1000],['nmi','nautical miles',1852]],12,'in','cm');
+conv('weight','Weight converter','Pounds, kilograms, ounces, stone and tons.',[['lb','pounds',.45359237],['oz','ounces',.028349523125],['kg','kilograms',1],['g','grams',.001],['mg','milligrams',1e-6],['st','stone',6.35029318],['ton','US tons',907.18474],['t','metric tonnes',1000]],150,'lb','kg');
+conv('volume-converter','Volume converter','Kitchen and liquid volumes, US units.',[['gal','gallons',3.785411784],['qt','quarts',.946352946],['pt','pints',.473176473],['cup','cups',.2365882365],['floz','fluid ounces',.0295735296],['tbsp','tablespoons',.0147867648],['tsp','teaspoons',.00492892159],['l','liters',1],['ml','milliliters',.001],['ft3','cubic feet',28.316846592],['m3','cubic meters',1000]],2,'cup','ml');
+conv('area','Area converter','Square feet, acres, hectares and more.',[['ft2','sq feet',.09290304],['in2','sq inches',.00064516],['yd2','sq yards',.83612736],['acre','acres',4046.8564224],['mi2','sq miles',2589988.110336],['m2','sq meters',1],['ha','hectares',1e4],['km2','sq kilometers',1e6]],1,'acre','ft2');
+conv('speed-converter','Speed converter','mph, km/h, m/s, knots.',[['mph','mph',.44704],['kmh','km/h',1/3.6],['ms','m/s',1],['kn','knots',1852/3600],['fts','ft/s',.3048]],65,'mph','kmh');
+conv('data','Data storage converter','Bytes from bits to tebibytes (decimal and binary).',[['bit','bits',.125],['B','bytes',1],['KB','KB',1e3],['MB','MB',1e6],['GB','GB',1e9],['TB','TB',1e12],['KiB','KiB',1024],['MiB','MiB',1048576],['GiB','GiB',1073741824],['TiB','TiB',1099511627776]],500,'GB','GiB');
+conv('time-units','Time unit converter','Seconds through years.',[['s','seconds',1],['min','minutes',60],['h','hours',3600],['d','days',86400],['wk','weeks',604800],['mo','months (avg)',2629746],['yr','years',31556952]],1,'yr','h');
+conv('pressure','Pressure converter','psi, bar, atm, kPa, inHg.',[['psi','psi',6894.757293],['bar','bar',1e5],['atm','atm',101325],['kPa','kPa',1e3],['Pa','pascals',1],['mmHg','mmHg',133.322387],['inHg','inHg',3386.389]],32,'psi','bar');
+conv('energy','Energy converter','Joules, calories, kWh, BTU.',[['J','joules',1],['kJ','kilojoules',1e3],['cal','calories',4.184],['kcal','kilocalories',4184],['Wh','watt-hours',3600],['kWh','kWh',3.6e6],['BTU','BTU',1055.05585],['ftlb','foot-pounds',1.3558179]],1,'kWh','BTU');
+conv('power','Power converter','Watts, kilowatts, horsepower, BTU/h.',[['W','watts',1],['kW','kilowatts',1e3],['hp','horsepower',745.699872],['btuh','BTU/hour',.29307107]],2.25,'hp','W');
+add('Conversion','temperature','Temperature converter','Fahrenheit, Celsius and Kelvin.',[N('x','Temperature',350),S('a','From',[['F','°F'],['C','°C'],['K','K']])],
+ v=>{need(v.x);const c=v.a==='C'?v.x:v.a==='F'?(v.x-32)*5/9:v.x-273.15;const F=['Fahrenheit',fx(c*9/5+32,2)+' °F'],Cc=['Celsius',fx(c,2)+' °C'],K=['Kelvin',fx(c+273.15,2)+' K'];return v.a==='F'?[Cc,K,F]:[F,v.a==='C'?K:Cc,v.a==='C'?Cc:K]},'°F = °C × 9/5 + 32 · K = °C + 273.15');
+add('Conversion','decimal-fraction','Decimal to fraction (inches)','Nearest tape-measure fraction for a decimal.',[N('x','Decimal inches',2.71875,'in'),S('d','Precision',[['16','1/16"'],['32','1/32"'],['8','1/8"'],['64','1/64"']])],
+ v=>{need(v.x);const den=+v.d,w=Math.floor(v.x),n=Math.round((v.x-w)*den);let W=w,Nn=n,Dn=den;if(Nn===Dn){W++;Nn=0}const g=gcd(Nn,Dn)||1;const s=Nn?`${W?W+' ':''}${Nn/g}/${Dn/g}"`:`${W}"`;return [['Nearest fraction',s],['Error',fx((W+Nn/Dn-v.x),5)+' in'],['In millimeters',fx(v.x*25.4,3)+' mm']]},'round the fractional part to the nearest 1/n');
+
+/* ---------- CONSTRUCTION ---------- */
+add('Construction','square-footage','Square footage','Area of a rectangular space.',[N('l','Length',14,'ft'),N('w','Width',12,'ft'),N('n','Number of areas',1)],
+ v=>{need(v.l,v.w,v.n);const a=v.l*v.w*v.n;return [['Area',fx(a,2)+' sq ft'],['Square yards',fx(a/9,2)],['Square meters',fx(a*.09290304,2)]]},'area = length × width');
+add('Construction','concrete','Concrete slab','Cubic yards and bags for a slab or footing.',[N('l','Length',10,'ft'),N('w','Width',10,'ft'),N('t','Thickness',4,'in'),N('x','Extra for waste',10,'%')],
+ v=>{need(v.l,v.w,v.t,v.x);const cf=v.l*v.w*v.t/12*(1+v.x/100);return [['Concrete',fx(cf/27,2)+' cu yd'],['Cubic feet',fx(cf,1)],['80 lb bags',fx(Math.ceil(cf/.6))],['60 lb bags',fx(Math.ceil(cf/.45))]]},'80 lb bag ≈ 0.60 cu ft · 60 lb bag ≈ 0.45 cu ft');
+add('Construction','board-feet','Board feet','Lumber volume and cost by the board foot.',[N('t','Thickness',1,'in'),N('w','Width',6,'in'),N('l','Length',8,'ft'),N('q','Pieces',10),N('p','Price',6.5,'$/bd ft')],
+ v=>{need(v.t,v.w,v.l,v.q,v.p);const bf=v.t*v.w*v.l/12*v.q;return [['Board feet',fx(bf,2)],['Cost',$(bf*v.p)],['Per piece',fx(bf/v.q,2)+' bd ft']]},'bd ft = T(in) × W(in) × L(ft) ÷ 12. Use nominal thickness for rough-sawn (4/4 = 1").');
+add('Construction','paint','Paint','Gallons to paint a room’s walls.',[N('l','Room length',14,'ft'),N('w','Room width',12,'ft'),N('h','Wall height',8,'ft'),N('d','Doors',1),N('win','Windows',2),N('c','Coats',2),N('cov','Coverage',350,'sq ft/gal')],
+ v=>{need(v.l,v.w,v.h,v.d,v.win,v.c,v.cov);const a=Math.max(0,2*(v.l+v.w)*v.h-v.d*21-v.win*15),g=a*v.c/v.cov;return [['Paint needed',fx(g,2)+' gal'],['Buy',`${Math.ceil(g)} gallon${Math.ceil(g)>1?'s':''}`],['Paintable wall area',fx(a)+' sq ft']]},'subtracts 21 sq ft per door, 15 per window');
+add('Construction','drywall','Drywall','Sheets of drywall for walls.',[N('l','Total wall length',52,'ft'),N('h','Wall height',8,'ft'),S('s','Sheet size',[['32','4 × 8 ft'],['40','4 × 10 ft'],['48','4 × 12 ft']]),N('x','Waste',10,'%')],
+ v=>{need(v.l,v.h,v.x);const a=v.l*v.h;return [['Sheets',fx(Math.ceil(a*(1+v.x/100)/+v.s))],['Wall area',fx(a)+' sq ft'],['Screws (≈32/sheet)',fx(Math.ceil(a*(1+v.x/100)/+v.s)*32)]]},'sheets = area × (1 + waste) ÷ sheet area');
+add('Construction','stairs','Stairs','Riser count, riser height and total run.',[N('r','Total rise',108,'in'),N('m','Max riser height',7.75,'in'),N('t','Tread depth',10,'in')],
+ v=>{need(v.r,v.m,v.t);const n=Math.ceil(v.r/v.m),h=v.r/n,run=(n-1)*v.t;return [['Risers',fx(n)],['Riser height',fx(h,3)+' in'],['Treads',fx(n-1)],['Total run',`${fx(run,1)} in (${fx(run/12,2)} ft)`],['Stringer length',fx(Math.hypot(v.r,run)/12,2)+' ft'],['2R + T (aim 24–25)',fx(2*h+v.t,2)]]},'IRC: risers ≤ 7¾", treads ≥ 10"');
+add('Construction','roof-pitch','Roof pitch','Angle, slope multiplier and roof area.',[N('r','Rise per 12" run',6,'in'),N('f','Footprint area (optional)',1500,'sq ft')],
+ v=>{need(v.r);const m=Math.hypot(12,v.r)/12;return [['Angle',fx(Math.atan(v.r/12)*180/Math.PI,2)+'°'],['Pitch',`${fx(v.r)}/12`],['Slope multiplier',fx(m,4)],['Roof area',isFinite(v.f)?fx(v.f*m,0)+' sq ft':'—'],['Squares (100 sq ft)',isFinite(v.f)?fx(v.f*m/100,1):'—']]},'multiplier = √(12² + rise²) ÷ 12');
+add('Construction','mulch-gravel','Mulch, gravel & soil','Cubic yards and bags for landscaping.',[N('l','Length',20,'ft'),N('w','Width',4,'ft'),N('d','Depth',3,'in'),S('m','Material',[['0','Mulch / soil'],['1.4','Gravel'],['1.35','Sand']])],
+ v=>{need(v.l,v.w,v.d);const cf=v.l*v.w*v.d/12,y=cf/27;return [['Volume',fx(y,2)+' cu yd'],['2 cu ft bags',fx(Math.ceil(cf/2))],['Weight',+v.m?fx(y*+v.m,2)+' tons':'—']]},'gravel ≈ 1.4 tons/yd³ · sand ≈ 1.35');
+add('Construction','tile','Tile','Number of tiles for a floor or wall.',[N('a','Area',120,'sq ft'),N('l','Tile length',12,'in'),N('w','Tile width',24,'in'),N('x','Waste',10,'%'),N('b','Tiles per box',8)],
+ v=>{need(v.a,v.l,v.w,v.x);const n=Math.ceil(v.a/(v.l*v.w/144)*(1+v.x/100));return [['Tiles',fx(n)],['Boxes',isFinite(v.b)&&v.b>0?fx(Math.ceil(n/v.b)):'—']]},'tiles = area ÷ tile area × (1 + waste)');
+add('Construction','fence','Fence','Posts, rails and pickets for a straight run.',[N('l','Fence length',100,'ft'),N('s','Post spacing',8,'ft'),N('r','Rails per section',2),N('p','Picket width',5.5,'in'),N('g','Gap between pickets',.25,'in')],
+ v=>{need(v.l,v.s,v.r,v.p,v.g);const sec=Math.ceil(v.l/v.s);return [['Posts',fx(sec+1)],['Rails',fx(sec*v.r)],['Pickets',fx(Math.ceil(v.l*12/(v.p+v.g)))],['Sections',fx(sec)]]},'posts = sections + 1');
+add('Construction','feed-rate','CNC feed rate','Feed rate from spindle speed, flutes and chip load.',[N('rpm','Spindle speed',18000,'RPM'),N('f','Flutes',2),N('c','Chip load',.004,'in/tooth'),N('d','Bit diameter',.25,'in')],
+ v=>{need(v.rpm,v.f,v.c,v.d);const ipm=v.rpm*v.f*v.c;return [['Feed rate',fx(ipm,1)+' in/min'],['Metric',fx(ipm*25.4,0)+' mm/min'],['Surface speed',fx(Math.PI*v.d*v.rpm/12,0)+' SFM']]},'feed = RPM × flutes × chip load');
+
+/* ---------- EVERYDAY LIFE ---------- */
+add('Everyday life','age','Age','Exact age in years, months and days.',[D('b','Date of birth','1990-06-15'),D('t','Age on date',iso(TODAY))],
+ v=>{const a=pd(v.b),b=pd(v.t);if(b<a)throw 'The second date must be after the birth date.';let y=b.getFullYear()-a.getFullYear(),m=b.getMonth()-a.getMonth(),d=b.getDate()-a.getDate();if(d<0){m--;d+=new Date(b.getFullYear(),b.getMonth(),0).getDate()}if(m<0){y--;m+=12}let nb=new Date(b.getFullYear(),a.getMonth(),a.getDate());if(nb<b)nb.setFullYear(nb.getFullYear()+1);return [['Age',`${y} years, ${m} months, ${d} days`],['Total days',fx(days(a,b))],['Total weeks',fx(Math.floor(days(a,b)/7))],['Next birthday',`${longD(nb)} · in ${days(b,nb)} days`],['Born on a',a.toLocaleDateString('en-US',{weekday:'long'})]]},'calendar difference, borrowing days from the previous month');
+add('Everyday life','date-difference','Days between dates','Days, weeks and weekdays between two dates.',[D('a','Start date',iso(TODAY)),D('b','End date',`${TODAY.getFullYear()}-12-25`)],
+ v=>{const a=pd(v.a),b=pd(v.b),n=days(a,b);let w=0;const s=n<0?b:a,e=n<0?a:b;for(let d=new Date(s);d<e&&w<1e6;d.setDate(d.getDate()+1)){const k=d.getDay();if(k&&k<6)w++}return [['Days',fx(n)],['Weeks',`${Math.trunc(n/7)} weeks ${Math.abs(n%7)} days`],['Weekdays (Mon–Fri)',fx(w)],['Months (approx.)',fx(n/30.4369,2)]]},'end date not included in the count');
+add('Everyday life','add-days','Add days to a date','Date that is N days before or after another.',[D('a','Start date',iso(TODAY)),N('n','Days to add (negative to subtract)',90)],
+ v=>{need(v.n);const r=addD(pd(v.a),Math.round(v.n));return [['Result',longD(r)],['ISO date',iso(r)]]},'calendar addition');
+add('Everyday life','time-duration','Hours worked','Time between two clock times, minus breaks.',[TM('a','Start','08:15'),TM('b','End','17:00'),N('br','Unpaid break',30,'min'),N('r','Hourly rate (optional)',0,'$')],
+ v=>{const m=((pt(v.b)-pt(v.a))+1440)%1440-(v.br||0);return [['Duration',`${Math.floor(m/60)} h ${pad(Math.round(m%60))} min`],['Decimal hours',fx(m/60,2)],['Earned',v.r>0?$(m/60*v.r):'—']]},'crosses midnight automatically');
+add('Everyday life','fuel-cost','Trip fuel cost','Gas cost for a drive.',[N('d','Distance',250,'mi'),N('m','Fuel economy',28,'mpg'),N('p','Gas price',3.19,'$/gal'),S('rt','Trip',[['1','One way'],['2','Round trip']]),N('n','People splitting',1)],
+ v=>{need(v.d,v.m,v.p);const g=v.d*+v.rt/v.m;return [['Fuel cost',$(g*v.p)],['Gallons',fx(g,2)],['Per person',$(g*v.p/(v.n||1))],['Cost per mile',$(v.p/v.m)]]},'cost = miles ÷ mpg × price');
+add('Everyday life','gas-mileage','Gas mileage','MPG from a fill-up.',[N('m','Miles driven',312),N('g','Gallons used',11.4)],
+ v=>{need(v.m,v.g);return [['Fuel economy',fx(v.m/v.g,2)+' mpg'],['L/100 km',fx(235.215/(v.m/v.g),2)],['km/L',fx(v.m/v.g*.425144,2)]]},'mpg = miles ÷ gallons');
+add('Everyday life','unit-price','Unit price comparison','Which package is the better deal.',[N('pa','Price A',4.99,'$'),N('qa','Size A',16,'oz'),N('pb','Price B',7.49,'$'),N('qb','Size B',28,'oz')],
+ v=>{need(v.pa,v.qa,v.pb,v.qb);const a=v.pa/v.qa,b=v.pb/v.qb,best=a<b?'A':a>b?'B':'Same';return [['Better deal',best==='Same'?'Same price per unit':`Option ${best} — ${pc(Math.abs(a-b)/Math.max(a,b)*100,1)} cheaper`],['A per unit',$(a)],['B per unit',$(b)]]},'unit price = price ÷ size');
+add('Everyday life','test-grade','Test grade','Score and letter grade from questions missed.',[N('t','Total points',40),N('w','Points wrong',6)],
+ v=>{need(v.t,v.w);const p=(v.t-v.w)/v.t*100,L=p>=97?'A+':p>=93?'A':p>=90?'A−':p>=87?'B+':p>=83?'B':p>=80?'B−':p>=77?'C+':p>=73?'C':p>=70?'C−':p>=67?'D+':p>=63?'D':p>=60?'D−':'F';return [['Score',pc(p,1)],['Letter grade',L],['Points earned',`${fx(v.t-v.w)} / ${fx(v.t)}`]]},'standard US 10-point scale with +/−');
+add('Everyday life','electricity-cost','Electricity cost','What an appliance costs to run.',[N('w','Power',1500,'watts'),N('h','Use per day',3,'hours'),N('r','Electric rate',.16,'$/kWh')],
+ v=>{need(v.w,v.h,v.r);const k=v.w/1000*v.h;return [['Monthly cost',$(k*v.r*30.44)],['Daily',$(k*v.r)],['Yearly',$(k*v.r*365)],['Energy per day',fx(k,2)+' kWh']]},'cost = kW × hours × rate');
+
+/* ---------- PHYSICS ---------- */
+const G=9.80665;
+add('Physics','speed','Speed, distance, time','Average speed from distance and time.',[N('d','Distance',150,'mi'),N('t','Time',2.5,'hours')],
+ v=>{need(v.d,v.t);return [['Speed',fx(v.d/v.t,3)+' mph'],['km/h',fx(v.d/v.t*1.609344,3)],['m/s',fx(v.d/v.t*.44704,3)]]},'v = d ÷ t');
+add('Physics','ohms-law','Ohm’s law','Current and power from voltage and resistance.',[N('v','Voltage',12,'V'),N('r','Resistance',220,'Ω')],
+ v=>{need(v.v,v.r);const i=v.v/v.r;return [['Current',fx(i,6)+' A'],['Milliamps',fx(i*1000,3)+' mA'],['Power',fx(v.v*i,6)+' W']]},'I = V ÷ R · P = V × I');
+add('Physics','kinetic-energy','Kinetic energy','Energy and momentum of a moving mass.',[N('m','Mass',1500,'kg'),N('v','Velocity',25,'m/s')],
+ v=>{need(v.m,v.v);return [['Kinetic energy',fx(.5*v.m*v.v*v.v)+' J'],['In kJ',fx(.5*v.m*v.v*v.v/1000,3)],['Momentum',fx(v.m*v.v)+' kg·m/s']]},'KE = ½mv²');
+add('Physics','force','Force (F = ma)','Newton’s second law.',[N('m','Mass',70,'kg'),N('a','Acceleration',G,'m/s²')],
+ v=>{need(v.m,v.a);const f=v.m*v.a;return [['Force',fx(f,4)+' N'],['Pound-force',fx(f/4.44822,4)+' lbf']]},'F = m × a');
+add('Physics','projectile','Projectile motion','Range, height and flight time without air resistance.',[N('v','Launch speed',20,'m/s'),N('a','Launch angle',45,'°'),N('h','Launch height',0,'m')],
+ v=>{need(v.v,v.a,v.h);const r=v.a*Math.PI/180,vx=v.v*Math.cos(r),vy=v.v*Math.sin(r),t=(vy+Math.sqrt(vy*vy+2*G*v.h))/G;return [['Range',fx(vx*t,3)+' m'],['Max height',fx(v.h+vy*vy/(2*G),3)+' m'],['Flight time',fx(t,3)+' s']]},'g = 9.80665 m/s²');
+add('Physics','free-fall','Free fall','Fall time and impact speed from a height.',[N('h','Height',20,'m')],
+ v=>{need(v.h);const t=Math.sqrt(2*v.h/G);return [['Fall time',fx(t,3)+' s'],['Impact speed',fx(G*t,3)+' m/s'],['In mph',fx(G*t/.44704,2)]]},'t = √(2h/g) · v = g·t');
+add('Physics','density','Density','Density from mass and volume.',[N('m','Mass',250,'g'),N('v','Volume',92.6,'cm³')],
+ v=>{need(v.m,v.v);const d=v.m/v.v;return [['Density',fx(d,4)+' g/cm³'],['kg/m³',fx(d*1000,2)],['lb/ft³',fx(d*62.428,3)],['Floats in water?',d<1?'Yes':'No']]},'ρ = m ÷ V');
+add('Physics','pendulum','Pendulum period','Period of a simple pendulum.',[N('l','Length',1,'m')],
+ v=>{need(v.l);const T=2*Math.PI*Math.sqrt(v.l/G);return [['Period',fx(T,4)+' s'],['Frequency',fx(1/T,4)+' Hz']]},'T = 2π√(L/g)');
+add('Physics','wavelength','Wavelength & frequency','Wavelength of light or sound from frequency.',[N('f','Frequency',440,'Hz'),S('m','Wave',[['343','Sound in air (20 °C)'],['1480','Sound in water'],['299792458','Light / radio in vacuum']])],
+ v=>{need(v.f);const l=+v.m/v.f;return [['Wavelength',fx(l,6)+' m'],['Period',fx(1/v.f,8)+' s']]},'λ = v ÷ f');
+add('Physics','planet-weight','Weight on other planets','Your weight elsewhere in the solar system.',[N('w','Weight on Earth',170,'lb')],
+ v=>{need(v.w);return [['Moon',.1654],['Mercury',.378],['Venus',.907],['Mars',.377],['Jupiter',2.528],['Saturn',1.065],['Uranus',.886],['Neptune',1.137]].map(([p,g])=>[p,fx(v.w*g,1)+' lb'])},'surface gravity relative to Earth');
+
+/* ---------- CHEMISTRY ---------- */
+const AM={H:1.008,He:4.0026,Li:6.94,Be:9.0122,B:10.81,C:12.011,N:14.007,O:15.999,F:18.998,Ne:20.180,Na:22.990,Mg:24.305,Al:26.982,Si:28.085,P:30.974,S:32.06,Cl:35.45,Ar:39.948,K:39.098,Ca:40.078,Ti:47.867,Cr:51.996,Mn:54.938,Fe:55.845,Co:58.933,Ni:58.693,Cu:63.546,Zn:65.38,Br:79.904,Sr:87.62,Ag:107.87,Sn:118.71,I:126.90,Ba:137.33,Pt:195.08,Au:196.97,Hg:200.59,Pb:207.2,U:238.03};
+function formula(s){s=s.replace(/\s/g,'');let i=0;const num=()=>{let d='';while(/\d/.test(s[i]||''))d+=s[i++];return d?+d:1};
+ const grp=()=>{const m={};while(i<s.length){const ch=s[i];if(ch==='('||ch==='['){i++;const g=grp();if(s[i]!==')'&&s[i]!==']')throw 'Unmatched bracket.';i++;const n=num();for(const k in g)m[k]=(m[k]||0)+g[k]*n}else if(ch===')'||ch===']')return m;else if(/[A-Z]/.test(ch)){let e=ch;i++;while(/[a-z]/.test(s[i]||''))e+=s[i++];if(!(e in AM))throw `Element “${e}” isn’t in this table.`;const n=num();m[e]=(m[e]||0)+n}else throw `Unexpected “${ch}”.`}return m};
+ const r=grp();if(i<s.length)throw 'Unmatched bracket.';return r}
+add('Chemistry','molar-mass','Molar mass','Molar mass and composition from a chemical formula.',[TX('f','Formula','C6H12O6')],
+ v=>{const m=formula(String(v.f));const tot=Object.entries(m).reduce((a,[e,n])=>a+AM[e]*n,0);if(!tot)throw 'Enter a formula like H2O or Ca(OH)2.';return [['Molar mass',fx(tot,3)+' g/mol']].concat(Object.entries(m).map(([e,n])=>[`${e} × ${n}`,pc(AM[e]*n/tot*100,2)]))},'sum of atomic masses (IUPAC standard values)');
+add('Chemistry','molarity','Molarity','Concentration of a solution from solute mass.',[N('m','Mass of solute',5.85,'g'),N('mm','Molar mass',58.44,'g/mol'),N('v','Solution volume',.5,'L')],
+ v=>{need(v.m,v.mm,v.v);const n=v.m/v.mm;return [['Molarity',fx(n/v.v,6)+' M'],['Moles',fx(n,6)+' mol'],['Millimolar',fx(n/v.v*1000,4)+' mM']]},'M = (mass ÷ molar mass) ÷ liters');
+add('Chemistry','dilution','Dilution (C₁V₁ = C₂V₂)','Volume of stock needed to make a dilution.',[N('c1','Stock concentration',10,'M'),N('c2','Target concentration',.5,'M'),N('v2','Target volume',250,'mL')],
+ v=>{need(v.c1,v.c2,v.v2);const v1=v.c2*v.v2/v.c1;return [['Stock to use',fx(v1,4)+' mL'],['Solvent to add',fx(v.v2-v1,4)+' mL'],['Dilution factor',fx(v.c1/v.c2,4)+'×']]},'V₁ = C₂V₂ ÷ C₁');
+add('Chemistry','ideal-gas','Ideal gas law','Moles of gas from pressure, volume and temperature.',[N('p','Pressure',1,'atm'),N('v','Volume',22.4,'L'),N('t','Temperature',0,'°C')],
+ v=>{need(v.p,v.v,v.t);const T=v.t+273.15,n=v.p*v.v/(.082057*T);return [['Moles',fx(n,5)+' mol'],['Molecules',sci(n*6.02214076e23)],['Temperature',fx(T,2)+' K']]},'PV = nRT, R = 0.082057 L·atm/(mol·K)');
+add('Chemistry','ph','pH','pH, pOH and ion concentrations.',[N('h','[H⁺] concentration',1e-5,'mol/L')],
+ v=>{need(v.h);if(v.h<=0)throw 'Concentration must be above 0.';const p=-Math.log10(v.h);return [['pH',fx(p,3)],['pOH',fx(14-p,3)],['[OH⁻]',sci(1e-14/v.h)+' M'],['Solution is',p<7?'Acidic':p>7?'Basic':'Neutral']]},'pH = −log₁₀[H⁺] at 25 °C');
+add('Chemistry','half-life','Half-life decay','Amount remaining after radioactive or first-order decay.',[N('n','Initial amount',100),N('h','Half-life',5730,'years'),N('t','Elapsed time',10000,'years')],
+ v=>{need(v.n,v.h,v.t);const r=v.n*.5**(v.t/v.h);return [['Remaining',fx(r,6)],['Fraction left',pc(r/v.n*100,3)],['Half-lives elapsed',fx(v.t/v.h,4)],['Decay constant λ',fx(Math.LN2/v.h,8)]]},'N = N₀ × (½)^(t/t½)');
+add('Chemistry','percent-yield','Percent yield','How much of the theoretical product you got.',[N('a','Actual yield',8.2,'g'),N('t','Theoretical yield',10,'g')],
+ v=>{need(v.a,v.t);return [['Percent yield',pc(v.a/v.t*100)],['Lost',fx(v.t-v.a,4)+' g']]},'yield = actual ÷ theoretical × 100');
+
+/* ---------- STATISTICS ---------- */
+const nums=s=>String(s).split(/[\s,;]+/).filter(Boolean).map(Number).filter(isFinite);
+add('Statistics','descriptive','Mean, median & standard deviation','Summary statistics for a list of numbers.',[TX('x','Data (comma or space separated)','12, 15, 11, 19, 15, 22, 14, 15, 18, 10')],
+ v=>{const a=nums(v.x);if(a.length<2)throw 'Enter at least two numbers.';const n=a.length,s=[...a].sort((p,q)=>p-q),mean=a.reduce((p,q)=>p+q,0)/n,med=n%2?s[(n-1)/2]:(s[n/2-1]+s[n/2])/2,ss=a.reduce((p,q)=>p+(q-mean)**2,0),cnt={};a.forEach(x=>cnt[x]=(cnt[x]||0)+1);const mx=Math.max(...Object.values(cnt)),mode=mx>1?Object.keys(cnt).filter(k=>cnt[k]===mx).join(', '):'none';return [['Mean',fx(mean,6)],['Median',fx(med,6)],['Mode',mode],['Sample std. dev. (s)',fx(Math.sqrt(ss/(n-1)),6)],['Population std. dev. (σ)',fx(Math.sqrt(ss/n),6)],['Range',`${fx(s[0])} – ${fx(s[n-1])}`],['Count',String(n)],['Sum',fx(mean*n,6)]]},'s = √(Σ(x − x̄)² ÷ (n − 1))');
+add('Statistics','z-score','Z-score','Standard score and percentile for a value.',[N('x','Value',85),N('m','Mean',70),N('s','Standard deviation',10)],
+ v=>{need(v.x,v.m,v.s);const z=(v.x-v.m)/v.s;return [['Z-score',fx(z,4)],['Percentile',pc(ncdf(z)*100,2)],['P(X > x)',fx(1-ncdf(z),5)]]},'z = (x − μ) ÷ σ');
+add('Statistics','p-value','P-value from z','P-value for a z test statistic.',[N('z','Z statistic',2.1),S('t','Test',[['2','Two-tailed'],['r','Right-tailed'],['l','Left-tailed']])],
+ v=>{need(v.z);const p=v.t==='2'?2*(1-ncdf(Math.abs(v.z))):v.t==='r'?1-ncdf(v.z):ncdf(v.z);return [['P-value',fx(p,6)],['At α = 0.05',p<.05?'Significant — reject H₀':'Not significant'],['At α = 0.01',p<.01?'Significant':'Not significant']]},'standard normal distribution');
+add('Statistics','confidence-interval','Confidence interval','Interval for a mean (z method).',[N('m','Sample mean',72.4),N('s','Standard deviation',8.1),N('n','Sample size',50),S('c','Confidence',['95','90','99','80','85','98','99.9'].map(x=>[x,x+'%']))],
+ v=>{need(v.m,v.s,v.n);const e=ZC[v.c]*v.s/Math.sqrt(v.n);return [['Interval',`${fx(v.m-e,4)} to ${fx(v.m+e,4)}`],['Margin of error',`± ${fx(e,4)}`],['Z critical',fx(ZC[v.c],4)]]},'x̄ ± z × s/√n. Use t for small samples.');
+add('Statistics','sample-size','Sample size','Survey respondents needed for a margin of error.',[S('c','Confidence',['95','90','99'].map(x=>[x,x+'%'])),N('e','Margin of error',5,'%'),N('p','Expected proportion',50,'%'),N('N','Population (0 = unlimited)',0)],
+ v=>{need(v.e,v.p);const z=ZC[v.c],p=v.p/100,e=v.e/100,n0=z*z*p*(1-p)/(e*e),n=v.N>0?n0/(1+(n0-1)/v.N):n0;return [['Sample size',fx(Math.ceil(n))],['Without population correction',fx(Math.ceil(n0))]]},'n = z²p(1−p) ÷ e², corrected for finite population');
+add('Statistics','probability','Probability of two events','Combine two independent events.',[N('a','P(A)',.6),N('b','P(B)',.3)],
+ v=>{need(v.a,v.b);if(v.a<0||v.a>1||v.b<0||v.b>1)throw 'Probabilities go from 0 to 1.';return [['Both A and B',fx(v.a*v.b,6)],['A or B',fx(v.a+v.b-v.a*v.b,6)],['Exactly one',fx(v.a+v.b-2*v.a*v.b,6)],['Neither',fx((1-v.a)*(1-v.b),6)]]},'independent: P(A∩B) = P(A)·P(B)');
+add('Statistics','permutation-combination','Permutations & combinations','Ways to choose or arrange r items from n.',[N('n','Total items n',10),N('r','Chosen r',3)],
+ v=>{need(v.n,v.r);if(v.r>v.n||v.r<0)throw 'r must be between 0 and n.';let c=1;for(let i=1;i<=v.r;i++)c=c*(v.n-v.r+i)/i;let p=1;for(let i=0;i<v.r;i++)p*=v.n-i;return [['Combinations nCr',fx(Math.round(c))],['Permutations nPr',fx(p)],['With repetition (nʳ)',fx(v.n**v.r)]]},'nCr = n! ÷ (r!(n−r)!) · nPr = n! ÷ (n−r)!');
+
+/* ---------- FOOD ---------- */
+add('Food','recipe-scaler','Recipe scaler','Scale an ingredient amount to a new number of servings.',[N('a','Original servings',4),N('b','New servings',10),N('q','Ingredient amount',1.5,'cups')],
+ v=>{need(v.a,v.b,v.q);const k=v.b/v.a;return [['Scaled amount',fx(v.q*k,3)],['Scale factor',fx(k,4)+'×'],['In tablespoons (if cups)',fx(v.q*k*16,1)]]},'new = old × new servings ÷ old servings');
+add('Food','turkey','Turkey roasting & thawing','Roast and thaw times for a whole turkey at 325 °F.',[N('w','Turkey weight',14,'lb'),S('s','Stuffed?',[['n','Unstuffed'],['y','Stuffed']])],
+ v=>{need(v.w);const r=v.w*(v.s==='y'?15:13);return [['Roasting time (approx.)',`${Math.floor(r/60)} h ${pad(Math.round(r%60))} min`],['Thaw in refrigerator',`${Math.ceil(v.w/4)} days`],['Thaw in cold water',`${fx(v.w*.5,1)} hours (change water every 30 min)`],['Done when thickest thigh reads','165 °F']]},'≈13 min/lb unstuffed, 15 stuffed; fridge thaw 24 h per 4 lb (USDA guidance)');
+add('Food','coffee-ratio','Coffee ratio','Water for a given dose of coffee.',[N('c','Coffee',20,'g'),S('r','Brew ratio',[['16','1:16 · drip / pour-over'],['15','1:15 · stronger'],['17','1:17 · lighter'],['12','1:12 · French press'],['2','1:2 · espresso']])],
+ v=>{need(v.c);const w=v.c*+v.r;return [['Water',fx(w)+' g'],['In fl oz',fx(w/29.5735,1)],['Cups (6 oz)',fx(w/177.4,1)]]},'water = coffee × ratio');
+add('Food','macro-calories','Calories from macros','Calories from protein, carbs and fat.',[N('p','Protein',30,'g'),N('c','Carbohydrates',45,'g'),N('f','Fat',15,'g'),N('a','Alcohol',0,'g')],
+ v=>{need(v.p,v.c,v.f,v.a);const P=v.p*4,Cc=v.c*4,F=v.f*9,A=v.a*7,t=P+Cc+F+A;return [['Calories',fx(t)+' kcal'],['Protein',pc(P/t*100,0)],['Carbs',pc(Cc/t*100,0)],['Fat',pc(F/t*100,0)]]},'4 kcal/g protein & carbs · 9 fat · 7 alcohol');
+add('Food','cups-grams','Cups to grams','Baking ingredients by weight.',[N('q','Cups',2),S('i','Ingredient',[['120','All-purpose flour'],['130','Bread flour'],['200','Granulated sugar'],['213','Brown sugar (packed)'],['120','Powdered sugar'],['227','Butter'],['237','Water / milk'],['90','Rolled oats'],['185','White rice (dry)'],['340','Honey'],['85','Cocoa powder']])],
+ v=>{need(v.q);const g=v.q*+v.i;return [['Weight',fx(g,1)+' g'],['Ounces',fx(g/28.3495,2)+' oz']]},'typical scooped weights per US cup');
+
+/* ---------- SPORTS ---------- */
+const RD=[['1','1 mile'],['3.10686','5K'],['6.21371','10K'],['13.1094','Half marathon'],['26.2188','Marathon']];
+add('Sports','pace','Running pace','Pace per mile and kilometer from distance and time.',[N('d','Distance',3.10686),S('u','Unit',[['mi','miles'],['km','kilometers']]),N('h','Hours',0),N('m','Minutes',27),N('s','Seconds',30)],
+ v=>{need(v.d,v.h,v.m,v.s);const t=v.h*3600+v.m*60+v.s,mi=v.u==='mi'?v.d:v.d/1.609344;return [['Pace per mile',hms(t/mi)],['Pace per km',hms(t/(mi*1.609344))],['Speed',fx(mi/(t/3600),2)+' mph'],['Total time',hms(t)]]},'pace = time ÷ distance');
+add('Sports','race-predictor','Race time predictor','Predict a race time from a recent result.',[S('a','Recent race',RD,'3.10686'),N('h','Hours',0),N('m','Minutes',27),N('s','Seconds',30),S('b','Goal race',RD,'13.1094')],
+ v=>{need(v.h,v.m,v.s);const t=(v.h*3600+v.m*60+v.s)*(+v.b/+v.a)**1.06;return [['Predicted time',hms(t)],['Pace per mile',hms(t/+v.b)]]},"Riegel: T₂ = T₁ × (D₂ ÷ D₁)^1.06");
+add('Sports','calories-burned','Calories burned','Energy burned during an activity (MET method).',[S('a','Activity',[['3.5','Walking, 3 mph'],['5','Walking, 4 mph brisk'],['9.8','Running, 6 mph'],['11.8','Running, 8 mph'],['8','Cycling, 12–14 mph'],['7','Swimming laps'],['6','Hiking'],['3.5','Weight lifting'],['2.5','Yoga'],['8','Basketball'],['4.8','Golf, carrying clubs'],['5.5','Mowing lawn']]),N('w','Weight',170,'lb'),N('t','Duration',45,'min')],
+ v=>{need(v.w,v.t);const k=+v.a*3.5*v.w*.45359237/200*v.t;return [['Calories burned',fx(Math.round(k))+' kcal'],['Per hour',fx(Math.round(k/v.t*60))+' kcal']]},'kcal = MET × 3.5 × kg ÷ 200 × minutes');
+add('Sports','one-rep-max','One-rep max','Estimate your 1RM and training loads.',[N('w','Weight lifted',185,'lb'),N('r','Reps',6)],
+ v=>{need(v.w,v.r);if(v.r<1||v.r>15)throw 'Use 1–15 reps for a sensible estimate.';const e=v.w*(1+v.r/30),b=v.w*36/(37-v.r),m=(e+b)/2;return [['Estimated 1RM',fx(Math.round(m))+' lb'],['Epley',fx(e,1)],['Brzycki',fx(b,1)],['85% (≈5 reps)',fx(Math.round(m*.85))],['75% (≈10 reps)',fx(Math.round(m*.75))]]},'Epley: w(1 + r/30) · Brzycki: w × 36/(37 − r)');
+add('Sports','era','ERA (baseball)','Earned run average for a pitcher.',[N('er','Earned runs',42),N('ip','Innings pitched',150.2,'.1 = ⅓')],
+ v=>{need(v.er,v.ip);const w=Math.floor(v.ip),f=Math.round((v.ip-w)*10),ip=w+f/3;return [['ERA',(v.er*9/ip).toFixed(2)],['Innings (decimal)',fx(ip,3)]]},'ERA = 9 × ER ÷ IP');
+add('Sports','batting-average','Batting average & OBP','Batting average and on-base percentage.',[N('h','Hits',152),N('ab','At-bats',510),N('bb','Walks',60),N('hbp','Hit by pitch',4),N('sf','Sacrifice flies',5)],
+ v=>{need(v.h,v.ab,v.bb,v.hbp,v.sf);const f=x=>x.toFixed(3).replace(/^0/,'');return [['Batting average',f(v.h/v.ab)],['On-base %',f((v.h+v.bb+v.hbp)/(v.ab+v.bb+v.hbp+v.sf))]]},'AVG = H ÷ AB · OBP = (H+BB+HBP) ÷ (AB+BB+HBP+SF)');
+
+/* ---------- BIOLOGY ---------- */
+add('Biology','dog-age','Dog age in human years','Size-adjusted dog age.',[N('a','Dog’s age',6,'years'),S('s','Size',[['5','Medium (21–50 lb)'],['4','Small (≤ 20 lb)'],['6','Large (51–100 lb)'],['7.5','Giant (100+ lb)']])],
+ v=>{need(v.a);const h=v.a<=1?v.a*15:v.a<=2?15+(v.a-1)*9:24+(v.a-2)*+v.s;return [['Human years',fx(Math.round(h))],['Life stage',v.a<1?'Puppy':v.a<3?'Young adult':v.a<(+v.s>5?6:8)?'Adult':'Senior']]},'15 for year one, +9 for year two, then +4–7.5 per year by size');
+add('Biology','population-growth','Exponential growth','Population after a number of doublings.',[N('n','Starting count',1000),N('d','Doubling time',20,'min'),N('t','Elapsed time',180,'min')],
+ v=>{need(v.n,v.d,v.t);const g=v.t/v.d;return [['Final count',fx(v.n*2**g)],['Generations',fx(g,3)],['Growth rate k',fx(Math.LN2/v.d,6)+' /min']]},'N = N₀ × 2^(t/Td)');
+add('Biology','dna-concentration','Nucleic acid concentration','Concentration from A260 absorbance.',[N('a','A260 reading',.45),N('d','Dilution factor',10),S('t','Sample',[['50','dsDNA'],['40','RNA'],['33','ssDNA']]),N('r','A260/A280 (optional)',1.85)],
+ v=>{need(v.a,v.d);const c=v.a*+v.t*v.d;return [['Concentration',fx(c,2)+' ng/µL'],['Purity',isFinite(v.r)?(v.r>=1.8&&v.r<=2.1?'Good (1.8–2.1)':'Check for protein or phenol contamination'):'—']]},'c = A260 × factor × dilution');
+add('Biology','hardy-weinberg','Hardy–Weinberg','Allele and genotype frequencies from the recessive phenotype.',[N('q2','Recessive phenotype frequency (q²)',.09)],
+ v=>{need(v.q2);if(v.q2<0||v.q2>1)throw 'Use a value from 0 to 1.';const q=Math.sqrt(v.q2),p=1-q;return [['p (dominant allele)',fx(p,4)],['q (recessive allele)',fx(q,4)],['p² homozygous dominant',pc(p*p*100)],['2pq carriers',pc(2*p*q*100)],['q² homozygous recessive',pc(v.q2*100)]]},'p² + 2pq + q² = 1');
+
+/* ---------- ECOLOGY ---------- */
+add('Ecology','car-co2','Car CO₂ emissions','Yearly tailpipe CO₂ from your driving.',[N('m','Miles per year',12000),N('e','Fuel economy',28,'mpg')],
+ v=>{need(v.m,v.e);const g=v.m/v.e,kg=g*8.887;return [['CO₂ per year',fx(kg/1000,2)+' metric tons'],['Gallons burned',fx(g,0)],['Per mile',fx(kg/v.m*1000,0)+' g']]},'8.887 kg CO₂ per gallon of gasoline (EPA)');
+add('Ecology','rainwater','Rainwater harvesting','Water you can collect from a roof.',[N('a','Roof footprint',1500,'sq ft'),N('r','Rainfall',1,'in'),N('e','Collection efficiency',80,'%')],
+ v=>{need(v.a,v.r,v.e);const g=v.a*v.r*.623*v.e/100;return [['Water collected',fx(g,0)+' gal'],['Liters',fx(g*3.78541,0)],['55-gal barrels',fx(g/55,1)]]},'1 inch on 1 sq ft ≈ 0.623 gal');
+add('Ecology','solar','Solar panel sizing','Panels needed to cover daily electricity use.',[N('k','Daily use',30,'kWh'),N('s','Peak sun hours',4.5,'h/day'),N('w','Panel rating',400,'W'),N('l','System losses',20,'%')],
+ v=>{need(v.k,v.s,v.w,v.l);const kw=v.k/(v.s*(1-v.l/100));return [['Panels',fx(Math.ceil(kw*1000/v.w))],['System size',fx(kw,2)+' kW'],['Yearly production',fx(Math.ceil(kw*1000/v.w)*v.w/1000*v.s*(1-v.l/100)*365,0)+' kWh']]},'kW = daily kWh ÷ (sun hours × (1 − losses))');
+add('Ecology','home-co2','Home electricity CO₂','Emissions from household electricity.',[N('k','Monthly use',900,'kWh'),N('f','Grid emission factor',.37,'kg/kWh')],
+ v=>{need(v.k,v.f);const t=v.k*12*v.f/1000;return [['CO₂ per year',fx(t,2)+' metric tons'],['Per month',fx(v.k*v.f,0)+' kg']]},'US average ≈ 0.37 kg CO₂/kWh; your utility may differ');
+
+/* ---------- UI ---------- */
+const CATS=[...new Set(C.map(c=>c.c))];
+const byId=Object.fromEntries(C.map(c=>[c.id,c]));
+const vals={};let cat='All';
+const el=(t,a={},...k)=>{const e=document.createElement(t);for(const[x,y]of Object.entries(a)){if(x==='class')e.className=y;else if(x.startsWith('on'))e.addEventListener(x.slice(2),y);else e.setAttribute(x,y)}k.flat().forEach(c=>c!=null&&e.append(c));return e};
+document.getElementById('tag').textContent=`${C.length} working calculators across ${CATS.length} subjects`;
+const q=document.getElementById('q');
+
+function cur(){const h=location.hash.slice(1);return byId[h]?h:'percentage'}
+function renderChips(){const box=document.getElementById('chips');box.replaceChildren(...['All',...CATS].map(c=>el('button',{class:'chip','aria-pressed':String(c===cat),onclick:()=>{cat=c;renderChips();renderList()}},c,el('b',{},String(c==='All'?C.length:C.filter(x=>x.c===c).length)))))}
+function renderList(){const s=q.value.trim().toLowerCase(),id=cur();document.body.classList.toggle('searching',!!s);
+ const hit=C.filter(c=>(cat==='All'||c.c===cat)&&(!s||(c.n+' '+c.s+' '+c.c+' '+c.id).toLowerCase().includes(s)));
+ const box=document.getElementById('list');if(!hit.length){box.replaceChildren(el('p',{class:'empty'},`No calculator matches “${q.value}”.`));return}
+ box.replaceChildren(...CATS.filter(k=>hit.some(c=>c.c===k)).map(k=>{const items=hit.filter(c=>c.c===k);return el('section',{class:'grp'},el('h2',{},k,el('span',{},String(items.length))),el('div',{class:'list'},items.map(c=>el('a',{class:'item',href:'#'+c.id,'aria-current':String(c.id===id),onclick:()=>{q.value='';document.body.classList.remove('searching')}},c.n))))}))}
+function compute(c,box){const v=vals[c.id];const pv={};c.i.forEach(f=>{pv[f.k]=f.t==='n'?(v[f.k]===''?NaN:Number(v[f.k])):v[f.k]});
+ try{const r=c.f(pv);const[m,...rest]=r;box.replaceChildren(el('div',{},el('p',{class:'main-l'},m[0]),el('p',{class:'main-v'},el('mark',{},m[1]))),rest.length?el('dl',{class:'rows'},rest.map(x=>el('div',{class:'row'},el('dt',{},x[0]),el('dd',{},x[1])))):null)}
+ catch(e){box.replaceChildren(el('p',{class:'err'},typeof e==='string'?e:'Check the inputs — something can’t be calculated.'))}}
+function renderPanel(){const c=byId[cur()];document.title=c.n+' · Calcbench';if(!vals[c.id])vals[c.id]=Object.fromEntries(c.i.map(f=>[f.k,String(f.d)]));const v=vals[c.id];
+ const res=el('div',{class:'results'});
+ const fields=c.i.map(f=>{const id=`${c.id}-${f.k}`;let inp;
+  if(f.t==='s')inp=el('select',{id},f.o.map(o=>{const[val,lab]=Array.isArray(o)?o:[o,o];const op=el('option',{value:val},lab);if(String(val)===v[f.k])op.selected=true;return op}));
+  else{inp=el('input',{id,type:f.t==='d'?'date':f.t==='tm'?'time':f.t==='tx'?'text':'number',...(f.t==='n'?{step:'any',inputmode:'decimal'}:{}),spellcheck:'false'});inp.value=v[f.k]}
+  inp.addEventListener('input',()=>{v[f.k]=inp.value;compute(c,res)});inp.addEventListener('change',()=>{v[f.k]=inp.value;compute(c,res)});
+  return el('div',{class:'field'},el('label',{for:id},f.l),el('div',{class:'inbox'},inp,f.u&&f.t!=='s'?el('span',{class:'unit'},f.u):null))});
+ const reset=el('button',{class:'btn',type:'button',onclick:()=>{delete vals[c.id];renderPanel()}},'Reset to example');
+ document.getElementById('panel').replaceChildren(el('article',{class:'sheet'},
+  el('header',{},el('p',{class:'crumb'},c.c),el('h1',{},c.n),el('p',{class:'desc'},c.s)),
+  el('form',{class:'fields',onsubmit:e=>e.preventDefault()},fields),res,
+  el('div',{class:'how'},el('h3',{},'How it’s figured'),el('code',{},c.m)),el('div',{class:'bar'},reset)));
+ compute(c,res)}
+function route(){renderPanel();renderList();if(matchMedia('(max-width:899px)').matches&&location.hash)document.getElementById('panel').scrollIntoView({block:'start'})}
+q.addEventListener('input',renderList);
+window.addEventListener('hashchange',route);
+renderChips();renderPanel();renderList();
+</script>
+
+</body></html>
